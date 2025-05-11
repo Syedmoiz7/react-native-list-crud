@@ -1,131 +1,186 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
-
-import React from 'react';
-import type {PropsWithChildren} from 'react';
+import React, { useState, useEffect, JSX } from 'react';
 import {
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  useColorScheme,
   View,
+  Text,
+  TextInput,
+  Button,
+  FlatList,
+  StyleSheet,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  ListRenderItem,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
-
-type SectionProps = PropsWithChildren<{
+interface Item {
+  id: string;
   title: string;
-}>;
-
-function Section({children, title}: SectionProps): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
+  description: string;
 }
 
-function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
+export default function App(): JSX.Element {
+  const [items, setItems] = useState<Item[]>([]);
+  const [title, setTitle] = useState<string>('');
+  const [description, setDescription] = useState<string>('');
+  const [isShowValidationForTitle, setIsShowValidationForTitle] = useState<boolean>(false);
+  const [isShowValidationForDescription, setIsShowValidationForDescription] = useState<boolean>(false);
 
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
+  useEffect(() => {
+    loadItems();
+  }, []);
+
+  useEffect(() => {
+    saveItems();
+  }, [items]);
+
+  const loadItems = async (): Promise<void> => {
+    try {
+      const storedItems = await AsyncStorage.getItem('items');
+      if (storedItems) {
+        setItems(JSON.parse(storedItems));
+      }
+    } catch (e) {
+      console.error('Failed to load items.', e);
+    }
   };
 
-  /*
-   * To keep the template simple and small we're adding padding to prevent view
-   * from rendering under the System UI.
-   * For bigger apps the recommendation is to use `react-native-safe-area-context`:
-   * https://github.com/AppAndFlow/react-native-safe-area-context
-   *
-   * You can read more about it here:
-   * https://github.com/react-native-community/discussions-and-proposals/discussions/827
-   */
-  const safePadding = '5%';
+  const saveItems = async (): Promise<void> => {
+    try {
+      await AsyncStorage.setItem('items', JSON.stringify(items));
+    } catch (e) {
+      console.error('Failed to save items.', e);
+    }
+  };
+
+  const setTitleValue = (val: string): void => {
+    if (isShowValidationForTitle) {
+      setIsShowValidationForTitle(false)
+    }
+    setTitle(val)
+  };
+
+  const setDescriptionValue = (val: string): void => {
+    if (isShowValidationForDescription) {
+      setIsShowValidationForDescription(false)
+    }
+    setDescription(val)
+  };
+
+  const addItem = (): void => {
+    if (!title.trim()) {
+      setIsShowValidationForTitle(true)
+      return
+    } else if (!description.trim()) {
+      setIsShowValidationForDescription(true)
+      return
+    }
+    const newItem: Item = { id: Date.now().toString(), title, description };
+    setItems([...items, newItem]);
+    setTitle('');
+    setDescription('');
+  };
+
+  const deleteItem = (id: string): void => {
+    setItems(items.filter((item) => item.id !== id));
+  };
+
+  const renderItem: ListRenderItem<Item> = ({ item }) => (
+    <View style={styles.itemContainer}>
+      <View>
+        <Text style={styles.itemTitle}>{item.title}</Text>
+        <Text>{item.description}</Text>
+      </View>
+      <TouchableOpacity onPress={() => deleteItem(item.id)}>
+        <Text style={styles.deleteText}>Delete</Text>
+      </TouchableOpacity>
+    </View>
+  );
 
   return (
-    <View style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <Text style={styles.heading}>Items List</Text>
+      <View>
+        <TextInput
+          placeholder="Title"
+          value={title}
+          onChangeText={(val) => setTitleValue(val)}
+          style={styles.input}
+        />
+        {isShowValidationForTitle && <Text style={styles.validationText}>Title should not be empty</Text>}
+      </View>
+      <View>
+        <TextInput
+          placeholder="Description"
+          value={description}
+          onChangeText={(val) => setDescriptionValue(val)}
+          style={styles.input}
+        />
+        {isShowValidationForDescription && <Text style={styles.validationText}>Description should not be empty</Text>}
+      </View>
+      <Button title="Add Item" onPress={addItem} />
+      <FlatList
+        data={items}
+        keyExtractor={(item) => item.id}
+        renderItem={renderItem}
+        contentContainerStyle={styles.list}
+        ListEmptyComponent={() => <Text style={styles.noItems}>No items yet.</Text>}
       />
-      <ScrollView
-        style={backgroundStyle}>
-        <View style={{paddingRight: safePadding}}>
-          <Header/>
-        </View>
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-            paddingHorizontal: safePadding,
-            paddingBottom: safePadding,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
+  container: {
+    flex: 1,
+    padding: 20,
+    paddingTop: 50,
+    backgroundColor: '#fff',
   },
-  sectionTitle: {
+  heading: {
     fontSize: 24,
-    fontWeight: '600',
+    marginBottom: 20,
+    textAlign: 'center',
   },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
+  input: {
+    borderColor: '#ccc',
+    borderWidth: 1,
+    marginBottom: 10,
+    padding: 10,
+    borderRadius: 5,
   },
-  highlight: {
-    fontWeight: '700',
+  list: {
+    marginTop: 20,
+  },
+  itemContainer: {
+    padding: 15,
+    marginVertical: 8,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  itemTitle: {
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  deleteText: {
+    color: 'red',
+  },
+  noItems: {
+    // color: 'red',
+    textAlign: 'center',
+  },
+  validationText: {
+    color: 'red',
+    fontSize: 12,
+    marginBottom: 10,
+    marginTop: -5,
   },
 });
-
-export default App;
